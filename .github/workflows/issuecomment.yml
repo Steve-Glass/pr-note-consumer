@@ -1,3 +1,5 @@
+# This workflow is managed by gh actions-lock.
+
 name: PR note
 run-name: PR note | comment ${{ github.event.comment.id }}
 

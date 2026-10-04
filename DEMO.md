@@ -34,7 +34,7 @@ gh actions-lock --help
 mkdir -p .demo-evidence
 ```
 
-Record the actual default branch, producer A SHA, immutable release metadata
+Record the actual default branch, producer A SHA, published release metadata
 and branch containing A. Do not assign a made-up SHA to `A_SHA`.
 
 ```sh
@@ -44,6 +44,10 @@ gh api repos/Steve-Glass/pr-note/releases/tags/v3.0.0 \
   --jq '{tag_name,target_commitish,immutable,published_at,html_url}'
 gh api repos/Steve-Glass/pr-note/commits/"$A_SHA"/branches-where-head
 ```
+
+Call this "published v3.0.0 at reviewed A," not a platform-enforced immutable
+release: the observed release reports `immutable: false`. The locking claim is
+about the reviewed commit identity, not release immutability.
 
 Both resolved refs must equal the coordinator's reviewed A SHA. If A is not
 currently a branch head, use the producer's named retaining branch and verify

@@ -1,3 +1,5 @@
+# This workflow is managed by gh actions-lock.
+
 name: Firewall probe
 run-name: Firewall probe | ${{ inputs.recording_id }}
 
