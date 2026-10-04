@@ -1,0 +1,57 @@
+name: PR note
+run-name: PR note | comment ${{ github.event.comment.id }}
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions: {}
+
+jobs:
+  comment:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
+      !endsWith(github.event.comment.user.login, '[bot]')
+    runs-on: ubuntu-24.04-firewall
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post the note
+        id: note
+        uses: Steve-Glass/pr-note@v3
+        with:
+          token: ${{ github.token }}
+          body: Thanks for the pull request!
+
+      - name: Record observed Action output
+        if: always()
+        env:
+          EXPECTED_REVISION: A
+          ACTUAL_REVISION: ${{ steps.note.outputs.demo-revision }}
+          ACTION_OUTCOME: ${{ steps.note.outcome }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          {
+            printf '## PR note observation\n\n'
+            printf -- '- Expected revision (recording checkpoint): `%s`\n' "$EXPECTED_REVISION"
+            printf -- '- Actual `demo-revision` output: `%s`\n' "${ACTUAL_REVISION:-not reported}"
+            printf -- '- Action step outcome: `%s`\n' "$ACTION_OUTCOME"
+            printf -- '- Trigger comment ID: `%s`\n' "$COMMENT_ID"
+            printf -- '- Workflow ref: `%s`\n' "$WORKFLOW_REF"
+            printf -- '- Workflow SHA: `%s`\n' "$WORKFLOW_SHA"
+            printf -- '- Run: %s\n' "$RUN_URL"
+            printf '\nAn output alone is not identity proof. Inspect the runner resolution SHA too.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$ACTION_OUTCOME" != success ] || [ -z "$ACTUAL_REVISION" ]; then
+            echo '::error::The Action did not successfully report its actual revision.'
+            exit 1
+          fi
+          if [ "$ACTUAL_REVISION" != "$EXPECTED_REVISION" ]; then
+            echo '::error::Observed revision differs from the recording checkpoint expectation.'
+            exit 1
+          fi

@@ -1,0 +1,143 @@
+# PR note consumer
+
+Consumer half of the pre-recorded GitHub Universe TRU1556M demo, paired with
+[Steve-Glass/pr-note](https://github.com/Steve-Glass/pr-note). This is a harmless
+demonstration of two separate controls: native dependency locking preserves a
+reviewed Action identity; native egress policy controls an independent external
+request. There is no supply-chain attack, malicious Action, or token-bearing probe.
+
+## Layout and behavior
+
+| Path | Purpose |
+| --- | --- |
+| `.github/workflows/issuecomment.yml` | A human comment on a PR calls `Steve-Glass/pr-note@v3` with `token` and `body: Thanks for the pull request!`. Records the actual `demo-revision` separately from expected `A`. |
+| `demo/before/issuecomment.yml` | Display-only source before onboarding, **not an active configuration switch**. |
+| `.github/workflows/actions.lock` | Generated later by the official CLI after producer A is published and reviewed; never hand-authored. |
+| `.github/egress-firewall.yaml` | Starts in `log` mode, with an additive `api.github.com` allow entry. |
+| `.github/workflows/firewall-demo.yml` | Independent manual, credential-free request to `https://example.com/`. |
+| `scripts/rehearse.py` | Operator helpers: preflight, prepare/reuse one sample PR, one trigger, one dispatch, exact-run evidence collection. |
+| [DEMO.md](DEMO.md) | Six recording clips, approval boundaries, evidence criteria, and reset instructions. |
+
+Both jobs select `ubuntu-24.04-firewall`. The comment job grants only
+`pull-requests: write`; the probe grants no token permissions. Neither checks out
+PR code. Comments from bots are excluded, preventing a reply loop. Opening a PR
+is not a trigger: use a human comment after the workflow is on the default branch.
+Workflow `GITHUB_TOKEN` comments generally do not start another workflow.
+
+The external probe disables implicit curl configuration, follows no redirects,
+uses bounded connection/overall timeouts, discards the response body, and sends
+no credentials, files, environment data, or query payloads. It is **not part of
+the producer Action**. Unexpected success in the deny checkpoint fails the job.
+An unsuccessful request remains visibly failed and is not automatically called
+an enforcement success.
+
+## Native dependency locking
+
+Prerequisites: authenticated `gh`, access to the technical preview, the official
+[github/gh-actions-lock](https://github.com/github/gh-actions-lock) extension,
+and published producer A with its real SHA, `v3 -> A`, `v3.0.0 -> A`, and
+branch reachability. Inspect the actual release and refs; names alone prove nothing.
+
+```sh
+gh actions-lock --help
+# Only if missing:
+gh extension install github/gh-actions-lock
+# After the producer handoff and the actual unonboarded baseline recording:
+gh actions-lock --no-narrow --no-interactive
+git diff -- .github/workflows
+gh actions-lock --verify-local --no-fix
+gh actions-lock --verify --json
+```
+
+The full-directory command onboards the completed workflows and creates the
+native `.github/workflows/actions.lock`. **`--no-narrow` is required for this
+demo**, not a generic default: otherwise the current CLI narrows `@v3` to a full
+semver ref, invalidating the unchanged-alias comparison. `--no-interactive` makes
+the local operation explicit and repeatable. Review the generated workflow map,
+producer commit, recorded ref, owner/repository IDs, and transitive dependencies.
+The probe has no `uses` dependencies; inspect the tool's actual coverage rather
+than inventing an empty enrollment entry.
+
+Normal future scans handle dependency additions/removals. Do not run `--relock`,
+`--accept-moved`, or any automatic pin refresh during replay. Never replace this
+feature with inline SHA pinning, a checker Action, or a fabricated file.
+
+A present lockfile or successful local check is **not runtime enforcement proof**.
+First capture an enrolled run that resolves and executes A. Stop before the
+producer moves `v3`. After approved B publication, use a **new human comment**
+with the consumer workflow and lockfile unchanged: verify upstream `v3 -> B`
+but runner resolution and actual output remain A. A skipped, refused, or failed
+Action is not proof that A executed. Locking preserves an identity, not a safety
+guarantee about the selected code.
+
+## Native firewall policy
+
+Start with the committed `log` policy and establish successful legitimate
+commenting and a successful 2xx probe. Review actual traffic before adding any
+necessary hosts. Do not disable the platform defaults. After separate approval,
+change only `mode: log` to `mode: enforce`, leaving `example.com` unallowed.
+The policy must be committed on the **same ref used by the workflow**.
+The dispatch input `expectation` labels the recording; it never changes policy.
+
+For containment evidence, correlate the actual native firewall deny event,
+destination, request time, run ID, and policy ref/SHA using that run's summary
+and artifacts. A timeout, DNS problem, arbitrary HTTP error, or missing runner
+is not proof. Treat log-mode proxy failures as baseline failures to investigate.
+Demonstrate legitimate commenting still works in enforce mode.
+
+Authorized source references:
+[native firewall preview](https://github.com/github-early-access/actions-native-egress-firewall)
+and [native locked-dependencies preview](https://gh.io/actions-lockfile).
+These may require access. This repository does not reproduce their documentation.
+The planned locked-dependency recording has feature-owner approval. This does
+not authorize copying private source documentation or committing sensitive
+preflight output or evidence; keep recording evidence local.
+
+## Rehearsal helpers
+
+Python 3 and existing `gh` authentication are sufficient for helpers:
+
+```sh
+python3 scripts/rehearse.py preflight
+python3 scripts/rehearse.py sample-pr
+python3 scripts/rehearse.py trigger --pr PR_NUMBER
+python3 scripts/rehearse.py dispatch --ref main --expectation reachable
+```
+
+Without `--apply`, mutation helpers only perform read-only discovery and print
+a concrete mutation preview. Trigger/dispatch previews require published
+workflows. `sample-pr` uses the dedicated same-repository `demo/sample-pr` branch;
+it reuses an open PR, refuses to duplicate a closed PR, and refuses unrelated
+branch changes. No fork is needed. Helpers intentionally require the approved
+human account and expected origin. They never publish implementation branches,
+merge, change repository settings, or change the producer.
+
+Only after approval, an operator can add `--apply` to the reviewed command.
+Save trigger receipts to `.demo-evidence/` and collect them as shown in DEMO.md.
+The evidence helper correlates event, exact title/comment ID, ref, SHA, actor,
+time and first run attempt; it refuses ambiguous matches and never chooses an
+unrelated latest run. It saves raw logs, run metadata, artifact IDs/URLs, and
+committed workflow/policy/lockfile snapshots. Review raw evidence; it does not
+invent a verdict or assume an artifact's name/schema. Evidence is ignored by Git.
+
+## Local validation and current prerequisites
+
+```sh
+python3 -m venv .demo-evidence/venv
+.demo-evidence/venv/bin/pip install -r requirements-dev.txt
+.demo-evidence/venv/bin/python -m unittest discover -s tests -v
+actionlint -ignore 'label "ubuntu-24.04-firewall" is unknown'
+gh actions-lock --verify-local --no-fix --json
+```
+
+The actionlint exception only recognizes the documented preview label; it does
+not substitute a runner or claim runner access. Tests stub curl and GitHub writes;
+they never dispatch, post comments, or execute a real network probe.
+
+At initial scaffold delivery, workflows/helpers are locally validated but not
+remotely rehearsed, and native onboarding is blocked on published producer A.
+The official local lock check correctly reports the missing dependency until
+onboarding. No remote run evidence is claimed. Use preflight to inspect current
+access and policy without committing its results. Neither admin access nor
+reading preview docs proves runner availability or native runtime enforcement.
+See DEMO.md for the remaining checkpoints and their exact resolution steps.
