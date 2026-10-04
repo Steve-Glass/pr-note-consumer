@@ -144,6 +144,7 @@ class HelperTests(unittest.TestCase):
         self.assertEqual(api.call_args_list[0].args, (f"repos/{rehearse.REPO}/pulls/1",))
         self.assertEqual(api.call_count, 1)
         self.assertEqual(receipt["preview"]["method"], "POST")
+        self.assertTrue(receipt["preview"]["body"]["body"].startswith("Demo checkpoint "))
 
     def test_dispatch_preview_never_posts(self):
         with patch.object(rehearse, "identity", return_value=({"default_branch": "main"}, "Steve-Glass")), \

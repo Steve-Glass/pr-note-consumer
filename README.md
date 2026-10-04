@@ -1,10 +1,16 @@
 # PR note consumer
 
-Consumer half of the pre-recorded GitHub Universe TRU1556M demo, paired with
-[Steve-Glass/pr-note](https://github.com/Steve-Glass/pr-note). This is a harmless
-demonstration of two separate controls: native dependency locking preserves a
-reviewed Action identity; native egress policy controls an independent external
-request. There is no supply-chain attack, malicious Action, or token-bearing probe.
+Example consumer of [Steve-Glass/pr-note](https://github.com/Steve-Glass/pr-note),
+with setup for two separate controls: native dependency locking and native
+egress policy. The Action posts a thank-you comment; an independent workflow
+makes a harmless external request. There is no supply-chain attack, malicious
+Action, or token-bearing probe.
+
+**Current status:** the official CLI has already generated and committed a lock
+for reviewed A. The after-B run selected B despite that unchanged lock; runtime
+behavior remains unresolved in [the tracking issue](https://github.com/Steve-Glass/pr-note-consumer/issues/2).
+Do not present this as successful A-after-B enforcement. Further runtime checks
+are deferred; recording the CLI command is a future manual step.
 
 ## Layout and behavior
 
@@ -16,7 +22,7 @@ request. There is no supply-chain attack, malicious Action, or token-bearing pro
 | `.github/egress-firewall.yaml` | Starts in `log` mode, with an additive `api.github.com` allow entry. |
 | `.github/workflows/firewall-demo.yml` | Independent manual, credential-free request to `https://example.com/`. |
 | `scripts/rehearse.py` | Operator helpers: preflight, prepare/reuse one sample PR, one trigger, one dispatch, exact-run evidence collection. |
-| [DEMO.md](DEMO.md) | Six recording clips, approval boundaries, evidence criteria, and reset instructions. |
+| [DEMO.md](DEMO.md) | Manual CLI recording steps, optional runtime checks, and evidence requirements. |
 
 Both jobs select `ubuntu-24.04-firewall`. The comment job grants only
 `pull-requests: write`; the probe grants no token permissions. Neither checks out
@@ -33,26 +39,31 @@ an enforcement success.
 
 ## Native dependency locking
 
-Prerequisites: authenticated `gh`, access to the technical preview, the official
+For initial onboarding, prerequisites are authenticated `gh`, preview access, the official
 [github/gh-actions-lock](https://github.com/github/gh-actions-lock) extension,
 and published producer A with its real SHA, `v3 -> A`, `v3.0.0 -> A`, and
 branch reachability. Inspect the actual release and refs; names alone prove nothing.
 This demo does not claim platform-enforced release immutability; it verifies
 the published `v3.0.0` and `v3` commit identities.
 
+**The lockfile already exists.** Upstream `v3` now points to B; preserve the
+recorded A identity and existing reproduction state. The following is the exact
+official command for a future manual recording, not a request to recreate or
+refresh the pin now:
+
 ```sh
 gh actions-lock --help
 # Only if missing:
 gh extension install github/gh-actions-lock
-# After the producer handoff and the actual unonboarded baseline recording:
+# Run manually when ready to record:
 gh actions-lock --no-narrow --no-interactive
 git diff -- .github/workflows
-gh actions-lock --verify-local --no-fix
-gh actions-lock --verify --json
 ```
 
-The full-directory command onboards the completed workflows and creates the
-native `.github/workflows/actions.lock`. **`--no-narrow` is required for this
+On first use, the full-directory command onboards workflows and creates the
+native `.github/workflows/actions.lock`. With the existing file, it is a
+maintenance run and may produce no diff; do not delete the file to stage an
+onboarding demonstration. **`--no-narrow` is required for this
 demo**, not a generic default: otherwise the current CLI narrows `@v3` to a full
 semver ref, invalidating the unchanged-alias comparison. `--no-interactive` makes
 the local operation explicit and repeatable. Review the generated workflow map,
@@ -65,12 +76,13 @@ Normal future scans handle dependency additions/removals. Do not run `--relock`,
 feature with inline SHA pinning, a checker Action, or a fabricated file.
 
 A present lockfile or successful local check is **not runtime enforcement proof**.
-First capture an enrolled run that resolves and executes A. Stop before the
-producer moves `v3`. After approved B publication, use a **new human comment**
-with the consumer workflow and lockfile unchanged: verify upstream `v3 -> B`
-but runner resolution and actual output remain A. A skipped, refused, or failed
-Action is not proof that A executed. Locking preserves an identity, not a safety
-guarantee about the selected code.
+The earlier run selecting A established functionality while `v3` also pointed
+to A; it did not establish enforcement. Any future verification must use a
+**new human comment**, unchanged workflow/lockfile identities, and the runner's
+actual resolution and output. A skipped, refused, or failed Action is not proof
+that A executed. Track the observed mismatch in the open issue rather than
+relocking or substituting inline SHA pinning. Locking concerns identity, not a
+safety guarantee about the selected code.
 
 ## Native firewall policy
 
@@ -91,9 +103,8 @@ Authorized source references:
 [native firewall preview](https://github.com/github-early-access/actions-native-egress-firewall)
 and [native locked-dependencies preview](https://gh.io/actions-lockfile).
 These may require access. This repository does not reproduce their documentation.
-The planned locked-dependency recording has feature-owner approval. This does
-not authorize copying private source documentation or committing sensitive
-preflight output or evidence; keep recording evidence local.
+Use only material approved for disclosure. Do not copy private source
+documentation or commit sensitive preflight output or evidence.
 
 ## Rehearsal helpers
 
@@ -141,6 +152,6 @@ The original unlocked scaffold is preserved at commit
 reviewed A, `a53b99fc9738713d0a1d0dba397606f0f0352a98`, without changing `@v3`.
 Keep actual run receipts and raw evidence local; local coverage checks or the
 presence of this file do not establish runtime enforcement. Use preflight to
-inspect current access and policy without committing its results. Follow DEMO.md
-to capture the unlocked baseline, locked A, and subsequent unchanged replay
-as distinct recording checkpoints.
+inspect current access and policy without committing its results. DEMO.md
+separates the manual CLI recording from deferred runtime verification and the
+independent firewall checks.

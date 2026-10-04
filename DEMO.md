@@ -1,285 +1,213 @@
-# Recording runbook: two independent controls
+# Demo guide
 
-This is a **pre-recorded, narrated** TRU1556M demonstration. The dependency clip
-selects benign A after `v3` moves to benign B; the firewall clip makes a separate
-credential-free request. No payload blocked by locking subsequently runs. No
-real secret is sent. Do not present intended results as observations.
+This repository separates dependency identity from outbound network policy.
+The producer Action and its A/B revisions are benign. The independent firewall
+probe sends no credentials, files, environment data, or query payloads. No
+payload blocked by locking subsequently runs.
 
-Producer context for adjacent clips: `lint-defaults.yml` shows the original
-checkout/cache defaults, improved `lint.yml` uses `pull_request`, and `release.yml`
-uses `cache-mode: none` with an explicit Steve-Glass-only actor policy targeting
-that release workflow. Those belong to the producer, not this repository.
-Fork approval is a **producer settings-only highlight**: no recorded fork PR,
-waiting-approval screen, or approval flow. The ordinary consumer sample PR and
-human comment below are still required. Firewall artifacts are not Policy
-insights; Policy insights concerns workflow execution protections.
+## Current state
 
-## Approval and preparation
+The official `gh-actions-lock` CLI has already generated and committed
+`.github/workflows/actions.lock`, recording reviewed A while retaining
+`Steve-Glass/pr-note@v3` in the workflow.
 
-The implementation branch may be pushed with approval. Publishing to `main`,
-opening PRs, writing sample fixtures/comments, dispatching runs, changing policy,
-and changing settings are separate mutations requiring approval. None of the
-validation commands does those operations. Helpers preview by default; an
-operator runs `--apply` only for a specifically approved phase. Coding agents
-use the app's PR-creation tool when supported rather than silently bypassing it.
+The after-B run selected B despite the unchanged workflow and lockfile. The
+cause is unknown and tracked in [the open native-locking issue](https://github.com/Steve-Glass/pr-note-consumer/issues/2).
+Do not claim A-after-B enforcement succeeded. Further runtime verification is
+deferred; the next recording step can show the CLI itself without starting runs.
 
-Feature-owner approval for the planned locked-dependency recording is confirmed.
-It is not blanket approval to publish private source documentation or sensitive
-preflight data. Keep evidence local and only use approved recording material.
-Use the existing authenticated human account; never print an auth token.
+| Reference | Preserved identity |
+| --- | --- |
+| Unlocked consumer baseline | `53f8dd1f4f056bc37f043d2a3883e3e16e0ed510` |
+| Consumer state used for both locked comparisons | `60d19c783b1c12b3654cd6f7f6e94fea27234c4e` |
+| Reviewed producer A (`v3.0.0`) | `a53b99fc9738713d0a1d0dba397606f0f0352a98` |
+| Published producer B (`v3.0.1`, moved `v3`) | `47713a3d521b26f4fa13e43fb64b0687c7603980` |
+
+These release names identify published commits, not platform-enforced immutable
+releases. The display-only `demo/before/issuecomment.yml` does not activate a
+baseline. Preserve the real commits and run evidence; do not reset tags, delete
+the lockfile, or overwrite enrolled YAML to stage a different result.
+
+## Record the official CLI command
+
+Use authenticated `gh` with the official
+[github/gh-actions-lock](https://github.com/github/gh-actions-lock) extension.
+If the extension is missing, install it with
+`gh extension install github/gh-actions-lock`.
+
+When ready to record manually:
+
+```sh
+gh actions-lock --help
+cat .github/workflows/actions.lock
+gh actions-lock --no-narrow --no-interactive
+git diff -- .github/workflows
+```
+
+The command has already been used for this repository. With an existing
+lockfile this is a maintenance run, not first-time onboarding, and it may
+produce no diff. A visual recording is a separate manual step; it does not
+authorize changing the preserved snapshot or publishing any resulting changes.
+Do not use `--relock`, `--accept-moved`, or delete the lock to manufacture a diff.
+
+**Show:** the exact command, existing native lockfile, recorded A identity, and
+actual CLI output. Explain that `--no-narrow` preserves the literal `@v3`;
+without it, the CLI normally narrows new version references to full semver tags.
+`--no-interactive` avoids prompts. Neither flag proves runtime enforcement.
+
+The comment workflow is listed in the generated workflow map. The independent
+probe has no `uses` dependencies; do not invent an empty enrollment entry.
+Keep CLI output distinct from runtime evidence and leave the mismatch issue
+open until the behavior is understood.
+
+## Optional runtime checks
+
+The steps below describe later, separately approved checks. They are not
+required for the CLI recording and must not run automatically. Helpers preview
+mutations by default. Adding `--apply` posts a comment, creates a sample fixture,
+or dispatches a workflow; inspect the preview and approve the specific operation.
+
+Use the existing authenticated human account, never print a token, and keep
+raw evidence in the ignored `.demo-evidence/` directory. Use only material
+approved for disclosure; do not publish private source documentation or
+sensitive preflight output.
 
 ```sh
 python3 scripts/rehearse.py preflight
-gh actions-lock --help
 mkdir -p .demo-evidence
 ```
 
-Record the actual default branch, producer A SHA, published release metadata
-and branch containing A. Do not assign a made-up SHA to `A_SHA`.
+### 1. Comment workflow
+
+The workflow must be on the default branch. It handles human comments on pull
+requests, excludes bots, and does not check out PR code. Opening a PR alone is
+not a trigger; a comment made with a workflow's `GITHUB_TOKEN` generally does
+not trigger another workflow.
 
 ```sh
-gh api repos/Steve-Glass/pr-note/commits/v3 --jq .sha
-gh api repos/Steve-Glass/pr-note/commits/v3.0.0 --jq .sha
-gh api repos/Steve-Glass/pr-note/releases/tags/v3.0.0 \
-  --jq '{tag_name,target_commitish,immutable,published_at,html_url}'
-gh api repos/Steve-Glass/pr-note/commits/"$A_SHA"/branches-where-head
-```
-
-Call this "published v3.0.0 at reviewed A," not a platform-enforced immutable
-release: the observed release reports `immutable: false`. The locking claim is
-about the reviewed commit identity, not release immutability.
-
-Both resolved refs must equal the coordinator's reviewed A SHA. If A is not
-currently a branch head, use the producer's named retaining branch and verify
-`gh api repos/Steve-Glass/pr-note/compare/"$A_SHA"...BRANCH --jq .status` is
-`ahead` or `identical`; do not equate an empty head lookup with unreachability.
-No producer mutations from this session.
-
-## 1. A simple Action posts the note
-
-**Initial state:** Published producer `v3 -> A`; actual **unenrolled** consumer
-workflow and `log` policy published on `main` through an approved change.
-Preserve that real consumer baseline commit as `BASELINE_SHA` in the recording
-notes. The display file alone is not a baseline run.
-
-```sh
-python3 scripts/rehearse.py sample-pr                 # inspect preview first
-python3 scripts/rehearse.py sample-pr --apply         # only after approval
-# Record the returned PR number as PR_NUMBER.
+python3 scripts/rehearse.py sample-pr
+# After approval, create or reuse the single sample PR:
+python3 scripts/rehearse.py sample-pr --apply
+# Set PR_NUMBER from the returned PR.
 python3 scripts/rehearse.py trigger --pr "$PR_NUMBER"
+# After approval, use a new receipt filename:
 python3 scripts/rehearse.py trigger --pr "$PR_NUMBER" --apply \
-  > .demo-evidence/baseline-comment.json
-python3 scripts/rehearse.py evidence --receipt .demo-evidence/baseline-comment.json
+  > .demo-evidence/comment.json
+python3 scripts/rehearse.py evidence --receipt .demo-evidence/comment.json
 ```
 
-**Capture:** sample PR's human trigger and bot reply, corresponding run, producer
-log marker, actual output A, and runner Action-resolution SHA. Opening the PR
-alone does not trigger it. Do not use a workflow's `GITHUB_TOKEN` for the trigger.
+**Expected behavior:** the Action posts `Thanks for the pull request!`.
+**Evidence:** the human trigger URL/ID, exact fresh run, runner Action SHA,
+actual `demo-revision` output, and bot reply. Expected and actual values must
+remain separate. With the currently unresolved locking behavior, a new comment
+may execute B and fail the workflow's expected-A check; do not hide that failure.
 
-**Narration:** "This simple Action thanks someone for their pull request. Today
-this friendly `v3` reference points to the benign revision I reviewed."
+Reuse the open sample PR instead of creating duplicates. Preserve the earlier
+unlocked baseline as historical evidence rather than reenacting it by resetting
+current state.
 
-**Expected:** the reply is exactly `Thanks for the pull request!`, the Action
-reports A, and the runner uses A. **Actual evidence:** receipt comment URL/ID,
-exact run URL, resolved SHA, summary output, reply URL, and baseline commit.
-If there is no run, inspect default-branch publication and event policy, not the
-most recent unrelated run.
+### 2. Inspect the recorded identity
 
-**Repeat/reset:** reuse the same open sample PR and create a new human comment
-with a new receipt filename. No duplicate PRs or automatic comment deletion.
-Preserve the baseline commit and `demo/before/issuecomment.yml`; do not overwrite
-enrolled YAML with the display snapshot later.
+Review `.github/workflows/actions.lock` alongside the workflow's literal `@v3`.
+The reviewed pin is A, not whatever commit the alias currently selects.
+No lockfile generation, dependency update, or tag reset is needed for this view.
 
-## 2. Lock the reviewed A identity
+For any later runtime investigation, preserve the exact workflow and lockfile
+blob identities and compare them to the run's own commit. A file on disk, a
+managed-file comment, a valid local check, or a successful A run while `v3 = A`
+does not prove native enforcement.
 
-**Initial state:** actual baseline captured, producer still at A, all workflow
-scaffolding complete. Wait for the producer handoff before generation.
+### 3. Compare after the alias moves (deferred)
 
-```sh
-gh actions-lock --no-narrow --no-interactive
-git diff -- .github/workflows
-cat .github/workflows/actions.lock
-gh actions-lock --verify-local --no-fix
-gh actions-lock --verify --json
-```
+Upstream has already moved to B. The original comparison is complete and
+recorded in the open issue; do not post another trigger automatically.
 
-Keep the full-directory scan. `--no-narrow` is required here to preserve the
-literal `Steve-Glass/pr-note@v3`; the CLI's generic default would narrow it.
-Review actual generated entries and repository IDs against
-`gh api repos/Steve-Glass/pr-note --jq '{id,owner_id:.owner.id}'`.
-Verify the producer entry's commit equals `A_SHA`, its recorded ref/reachability
-is valid, and the comment workflow is enrolled. Do not manufacture fields or
-an entry for the action-free probe. No `--relock` or `--accept-moved`.
-
-After **separate approval**, publish this reviewed workflow/lockfile state to
-`main`, record its commit as `LOCKED_SHA`, then:
-
-```sh
-python3 scripts/rehearse.py trigger --pr "$PR_NUMBER" --apply \
-  > .demo-evidence/locked-a-comment.json
-python3 scripts/rehearse.py evidence --receipt .demo-evidence/locked-a-comment.json
-```
-
-**Capture:** display-only before source versus the actual generated diff,
-native lock entry and workflow enrollment, then the exact run's dependency
-resolution and actual A output/reply.
-
-**Narration:** "I keep the readable version reference and review the identity
-recorded by the native lockfile tool. I then verify the runner actually executes A."
-
-**Expected:** enrolled execution resolves and runs A. **Actual evidence:** CLI
-version/output, reviewed lock identity and generated diff, run metadata/logs,
-actual marker/output and reply. Local coverage is not runtime proof. If startup
-rejects the dependency or native access is missing, record the real error and
-mark this checkpoint blocked; do not narrate it as A executing.
-
-**Repeat/reset:** a fresh comment may repeat A; do not regenerate or refresh pins.
-**STOP HERE. Tell the coordinator A executed successfully and supply evidence.
-Do not let the producer advance `v3` before that handoff.**
-
-## 3. Upstream changes; a NEW run still executes A
-
-**Initial state:** coordinator confirms approved benign B publication;
-`v3.0.1 -> B`, `v3 -> B`, and reviewed A remains branch-reachable.
-Consumer workflow and lockfile stay byte-for-byte unchanged.
+For a later approved investigation:
 
 ```sh
 gh api repos/Steve-Glass/pr-note/commits/v3 --jq .sha
 gh api repos/Steve-Glass/pr-note/commits/v3.0.1 --jq .sha
-# Save these observed B resolutions before posting the new trigger.
+# Compare against the preserved locked checkpoint:
 git diff "$LOCKED_SHA" -- .github/workflows/issuecomment.yml .github/workflows/actions.lock
-python3 scripts/rehearse.py trigger --pr "$PR_NUMBER" --apply \
-  > .demo-evidence/after-b-comment.json
-python3 scripts/rehearse.py evidence --receipt .demo-evidence/after-b-comment.json
 ```
 
-**Capture:** actual upstream B SHA next to reviewed A lock identity, new comment
-ID/new run ID (attempt 1), runner resolution SHA A, and actual Action output A.
-Compare the exact committed workflow/lockfile snapshots collected for both runs,
-not merely the working tree. No rerun of the previous run.
+**Intended result:** with upstream at B, a new unchanged consumer run selects A.
+**Observed result so far:** the fresh run selected B and reported B; the
+expected-A check failed. The cause is not established. Confirmation of runtime
+enablement/compatibility must come from the feature owner, not an invented flag
+or a silent inline-SHA substitution.
 
-**Narration:** "The publisher moved `v3` to another harmless revision. This new
-consumer run still selects my reviewed A identity, even though the alias now resolves to B."
+If another run is later approved, use a new human comment and receipt, not a
+rerun. Compare upstream resolution, run ID/attempt, workflow/lockfile snapshots,
+actual runner SHA, actual output, and real reply. A rejected or skipped Action
+is not evidence that A executed.
 
-**Expected:** actual resolution and execution A, unchanged reply. **Actual
-evidence:** upstream B lookup, both runs' committed blob identities, new receipt,
-runner SHA A and Action output A. B output, lock errors, skipped steps, or printed
-expectations are not success. A output alone does not establish native selection.
+### 4. Establish external reachability in log mode
 
-**Repeat/reset:** post a new comment without touching the lockfile or workflow.
-Do not automatically relock. Any deliberate update is outside the core clip
-and requires its own approval.
-
-## 4. Establish external reachability in log mode
-
-**Initial state:** committed `mode: log` on the explicitly dispatched branch;
-completed locking checkpoints remain separate. The probe workflow must also
-exist on the default branch.
+This is independent of the locking comparison and has not been recorded.
+Keep the committed policy in `log` mode on the explicitly selected ref.
+The dispatch workflow must also exist on the default branch.
 
 ```sh
 python3 scripts/rehearse.py dispatch --ref main --expectation reachable
+# Only after approval:
 python3 scripts/rehearse.py dispatch --ref main --expectation reachable --apply \
   > .demo-evidence/log-probe.json
 python3 scripts/rehearse.py evidence --receipt .demo-evidence/log-probe.json
 ```
 
-**Capture:** selected ref, committed log policy, exact request, actual curl
-exit 0 and 2xx status, run summary and firewall artifacts. The helper creates
-a unique recording ID to correlate dispatches; it never guesses the latest run.
+**Expected:** the bounded, credential-free `GET https://example.com/` returns
+curl exit 0 and a 2xx status. **Evidence:** selected ref/SHA, committed policy,
+request timestamp/result, and that run's native traffic record.
+The `expectation` input labels the check; it does not select the policy mode.
+A log-mode proxy failure, DNS error, or missing runner is a failed baseline,
+not proof of enforcement.
 
-**Narration:** "This is a separate, credential-free network request, not part
-of the comment Action. I first establish that the same destination is reachable."
+### 5. Enforce and correlate a deny (not performed)
 
-**Expected:** successful request. **Actual evidence:** receipt/run ID, workflow
-SHA, committed policy snapshot, request time/status and native traffic record.
-If log mode fails, investigate proxy, runner or destination behavior. Do not
-proceed as though the baseline succeeded.
-
-**Repeat/reset:** dispatch again on the same reviewed log ref with a new receipt.
-Keep every dependency lock on any named recording branch. A change on `main`
-cannot change a dispatch from another ref.
-
-## 5. Enforce and correlate the actual deny
-
-**Initial state:** successful log baseline captured. With approval, change only
-`.github/egress-firewall.yaml` from `mode: log` to `mode: enforce`, retain
-`api.github.com`, and publish that reviewed policy change to `main`. Keep
-`example.com` outside the additive allowlist. Record the policy commit.
+Only after a successful log baseline and separate approval, change the committed
+policy to `mode: enforce`. Keep `api.github.com` allowed and `example.com`
+outside the additive allowlist. Review real traffic before adding necessary
+hosts; do not disable platform defaults or broaden permissions to force success.
 
 ```sh
-git diff -- .github/egress-firewall.yaml
-# Publish the reviewed policy only after approval, then:
-python3 scripts/rehearse.py dispatch --ref main --expectation denied
+# Only after the reviewed enforce policy is published on this ref:
 python3 scripts/rehearse.py dispatch --ref main --expectation denied --apply \
   > .demo-evidence/enforce-probe.json
 python3 scripts/rehearse.py evidence --receipt .demo-evidence/enforce-probe.json
-# From that exact result, set RUN_ID and select an actual artifact name:
-gh api repos/Steve-Glass/pr-note-consumer/actions/runs/"$RUN_ID"/artifacts \
-  --jq '.artifacts[] | {id,name,expired,archive_download_url}'
+# Use the exact run ID and an actual artifact name from its metadata:
 gh run download "$RUN_ID" --repo Steve-Glass/pr-note-consumer \
   --name "$ARTIFACT_NAME" --dir ".demo-evidence/$RUN_ID/firewall"
 ```
 
-**Capture:** exact run's native firewall summary and downloaded artifact showing
-the deny for `curl`, `https://example.com/`, and its rule; correlate run/ref/SHA
-and request time with the probe summary. Read the actual artifact schema rather
-than assuming its name or fields. Preserve its ID and download reference.
+**Required evidence:** the same run's native deny event for `curl` and
+`https://example.com/`, its rule, and matching request time/ref/policy SHA.
+Read the actual artifact schema; do not assume its name or fields.
+The probe should remain visibly failed. A random network error is not proof,
+and unexpected success explicitly fails the containment check.
 
-**Narration:** "The same harmless request is now outside the enforced allowlist.
-This matching firewall deny event, not just a network error, is the evidence."
+Policy is read from the workflow's ref. Editing `main` does not change a
+dispatch from another branch. Any repeat or return to log mode requires a
+reviewed policy state and separate approval.
 
-**Expected:** the probe is **intentionally visibly failed**, with a matching
-native deny event. **Actual evidence:** raw request result, committed enforce
-policy, native deny rule/destination/command and same-run artifact. A random
-curl error, missing artifact/runner, or proxy failure is not proof; an unexpected
-2xx response is explicitly flagged as failure to demonstrate containment.
+### 6. Legitimate commenting under enforcement (not performed)
 
-**Repeat/reset:** dispatch a new run on the same enforce ref. To repeat log
-baseline, approve and publish a log-mode policy change or use a preserved,
-clearly identified log ref. Never edit policy silently between captures.
+After a future enforce-mode checkpoint, a separately approved new comment should
+still receive the exact thank-you reply with only `pull-requests: write`.
+Capture the real Action SHA/output, reply, committed policy, and native traffic
+evidence. Any A-identity claim also depends on resolving the open locking issue.
+Do not refresh pins or weaken unrelated protections to make the run green.
 
-## 6. Legitimate commenting still works
+## Related producer setup
 
-**Initial state:** reviewed enforce policy active on `main`, API host allowed,
-consumer workflow/lockfile unchanged; upstream still at approved B.
+The producer's `lint-defaults.yml` shows checkout/cache defaults; `lint.yml`
+uses `pull_request`. Its `release.yml` uses `cache-mode: none` and an explicit
+Steve-Glass-only actor policy targeting that workflow. These are producer
+settings, not consumer changes. Fork approval is a settings-only inspection;
+no fork PR or approval flow is required here.
 
-```sh
-python3 scripts/rehearse.py trigger --pr "$PR_NUMBER" --apply \
-  > .demo-evidence/enforced-comment.json
-python3 scripts/rehearse.py evidence --receipt .demo-evidence/enforced-comment.json
-```
-
-**Capture:** new reply, actual A output, runner A identity, enforce policy
-snapshot, and native traffic evidence for legitimate commenting.
-
-**Narration:** "The external request was contained, while the intended GitHub
-comment still works. Dependency identity and outbound traffic are separate controls."
-
-**Expected:** successful A execution and exact thank-you reply under enforcement.
-**Actual evidence:** new trigger/run/reply URLs, resolved SHA and actual output,
-same-ref policy and native artifacts. If legitimate requests fail, inspect real
-traffic and propose only the necessary additional hosts for review.
-
-**Repeat/reset:** new human comment and receipt; do not change permissions,
-weaken inherited policy, or refresh the lock to force a green recording.
-
-## Initial status and remaining gaps
-
-| Checkpoint | Status at scaffold delivery | Resolution/evidence required |
-| --- | --- | --- |
-| Local workflows, guards, summaries, bounded probe, helper dry-runs | Verified locally | Unit tests stub all requests; no remote execution claim. |
-| Producer A readiness | Blocked | Coordinator supplies published A SHA, actual release/ref evidence and retaining branch. |
-| Native onboarding | Blocked on A | Run official `gh actions-lock --no-narrow --no-interactive`; inspect generated diff and identity. |
-| Native runtime enforcement | Not rehearsed | Approved enrolled A run, then stop; approved upstream B move followed by new unchanged consumer run selecting A. |
-| Preview sources / authentication | Inspect with read-only preflight | Keep access results local. Documentation access does not prove runtime access. |
-| Firewall runner and log baseline | Implemented, not rehearsed | Approved same-ref dispatch must start and successfully reach the destination; inspect real traffic. |
-| Enforced deny and legitimate comment | Implemented, not rehearsed | Approved committed enforce policy, correlated native deny artifact, then successful real comment. |
-| Event/organization/enterprise policy | Runtime untested | If blocked, inspect exact run/policy error and its source. Request scoped help; never weaken unrelated protections. |
-| Locked-dependency recording approval | Confirmed separately | Use only approved recording material; no private source documentation or sensitive preflight output in Git. |
-
-No documented supported API was used to assert that this repository's native
-runtime enforcement is enabled. Do not invent an enrollment flag, call future
-capabilities available today, or equate repository admin permission with preview
-availability. If a run cannot start, report its queue/startup error and seek
-preview access help through the coordinator. Settings-only UI capture may still
-be needed on the producer; it is not a consumer code or permission change.
+Firewall artifacts are not Policy insights; Policy insights concerns workflow
+execution protections. Preview documentation access or repository admin
+permission does not prove native runtime availability. Report actual errors
+and use the open issue to resolve the locking mismatch without altering the
+preserved reproduction.

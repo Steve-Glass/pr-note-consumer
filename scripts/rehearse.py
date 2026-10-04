@@ -142,7 +142,6 @@ def sample_pr(args):
             "branch": SAMPLE_BRANCH,
             "content": base64.b64encode(SAMPLE_CONTENT.encode()).decode(),
         }, args.apply))
-    # The operator runs this helper; coding agents should use their app PR tool.
     pr_command = [
         "gh", "pr", "create", "--repo", REPO, "--base", base, "--head", SAMPLE_BRANCH,
         "--title", "Demo: harmless PR note fixture",
@@ -168,7 +167,7 @@ def trigger(args):
         "pr": args.pr,
     }
     result = write_preview("POST", f"repos/{REPO}/issues/{args.pr}/comments", {
-        "body": f"Universe recording checkpoint {uuid.uuid4()}: please post the demo note.",
+        "body": f"Demo checkpoint {uuid.uuid4()}: please post the demo note.",
     }, args.apply)
     if args.apply:
         receipt.update(comment_url=result["html_url"], comment_id=result["id"],
