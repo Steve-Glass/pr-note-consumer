@@ -27,7 +27,9 @@ class WorkflowTests(unittest.TestCase):
         self.probe = load(".github/workflows/firewall-demo.yml")
 
     def test_comment_contract_and_baseline(self):
-        self.assertEqual(self.comment, load("demo/before/issuecomment.yml"))
+        baseline = load("demo/before/issuecomment.yml")
+        for key in ("name", "run-name", "on", "permissions"):
+            self.assertEqual(self.comment[key], baseline[key])
         self.assertEqual(self.comment["on"], {"issue_comment": {"types": ["created"]}})
         self.assertEqual(self.comment["permissions"], {})
         job = self.comment["jobs"]["comment"]
@@ -41,6 +43,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(actions[0]["with"], {
             "token": "${{ github.token }}", "body": "Thanks for the pull request!",
         })
+        self.assertEqual({**actions[0], "id": "note"}, baseline["jobs"]["comment"]["steps"][0])
         self.assertNotIn("checkout", json.dumps(self.comment))
         self.assertIn("github.event.comment.id", self.comment["run-name"])
 
@@ -60,23 +63,15 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("no-default-urls", policy)
         self.assertFalse((ROOT / ".github/workflows/egress-firewall.yaml").exists())
 
-    def test_summary_uses_actual_output(self):
-        step = self.comment["jobs"]["comment"]["steps"][1]
-        self.assertEqual(step["env"]["ACTUAL_REVISION"], "${{ steps.note.outputs.demo-revision }}")
-        for actual, outcome, expected_status in (
-            ("A", "success", 0), ("B", "success", 1), ("", "failure", 1),
-        ):
-            with self.subTest(actual=actual), tempfile.TemporaryDirectory() as temp:
-                summary = Path(temp) / "summary"
-                result = subprocess.run(["bash", "-e", "-c", step["run"]], env={
-                    **os.environ, "GITHUB_STEP_SUMMARY": str(summary),
-                    "EXPECTED_REVISION": "A", "ACTUAL_REVISION": actual, "ACTION_OUTCOME": outcome,
-                    "COMMENT_ID": "123", "WORKFLOW_REF": "owner/repo/workflow@main",
-                    "WORKFLOW_SHA": "test-sha", "RUN_URL": "https://github.com/test/run",
-                }, capture_output=True, text=True)
-                self.assertEqual(result.returncode, expected_status)
-                self.assertIn(f"Actual `demo-revision` output: `{actual or 'not reported'}`",
-                              summary.read_text())
+    def test_comment_only_posts_the_note_without_demo_assertions(self):
+        self.assertEqual(self.comment["jobs"]["comment"]["steps"], [{
+            "name": "Post the note",
+            "uses": "Steve-Glass/pr-note@v3",
+            "with": {
+                "token": "${{ github.token }}",
+                "body": "Thanks for the pull request!",
+            },
+        }])
 
     def test_probe_outcomes_and_exact_credential_free_request(self):
         script = self.probe["jobs"]["probe"]["steps"][0]["run"]

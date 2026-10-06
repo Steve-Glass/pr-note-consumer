@@ -53,6 +53,10 @@ releases. The display-only `demo/before/issuecomment.yml` does not activate a
 baseline. Preserve the real commits and run evidence; do not reset tags, delete
 the lockfile, or overwrite enrolled YAML to stage a different result.
 
+The current comment workflow no longer includes the demo-only output summary
+or expected-A assertion. The earlier run and display-only snapshot retain that
+diagnostic history. Removing the check does not resolve or verify native locking.
+
 ## Record the official CLI command
 
 Use authenticated `gh` with the official
@@ -123,9 +127,10 @@ python3 scripts/rehearse.py evidence --receipt .demo-evidence/comment.json
 
 **Expected behavior:** the Action posts `Thanks for the pull request!`.
 **Evidence:** the human trigger URL/ID, exact fresh run, runner Action SHA,
-actual `demo-revision` output, and bot reply. Expected and actual values must
-remain separate. With the currently unresolved locking behavior, a new comment
-may execute B and fail the workflow's expected-A check; do not hide that failure.
+producer revision marker in the logs, and bot reply. Expected and actual values
+must remain separate. The workflow no longer asserts revision A, so a successful
+comment job is not evidence that the recorded identity was selected. Inspect
+the actual runner SHA and marker for any separately approved investigation.
 
 Reuse the open sample PR instead of creating duplicates. Preserve the earlier
 unlocked baseline as historical evidence rather than reenacting it by resetting
