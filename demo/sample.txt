@@ -1,0 +1,1 @@
+Harmless PR note recording fixture. No executable code.
