@@ -12,6 +12,23 @@ behavior remains unresolved in [the tracking issue](https://github.com/Steve-Gla
 Do not present this as successful A-after-B enforcement. Further runtime checks
 are deferred; recording the CLI command is a future manual step.
 
+## Recording flow
+
+Start with the producer's original attack model, then show implicit checkout
+hardening and read-only-cache defaults through annotations on the **same
+`pull_request_target` lint workflow**. The default protections, not a YAML
+migration, are the main comparison. Next cover the
+[upcoming default Workflow Execution Policy (WEP) event restriction](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target#default-policy-for-pull_request_target)
+for affected public repositories, with a brief optional move to `pull_request`
+for lint that needs no secrets or elevated permissions. Keep
+that default event policy distinct from the explicit Steve-Glass-only actor
+policy scoped to the producer's `release.yml` and its release cache opt-out.
+Then switch to this consumer for the manual official CLI recording and the
+independent harmless firewall request. See [DEMO.md](DEMO.md) for the small
+on-screen highlights and evidence boundaries. Default enforcement is scheduled
+for November 2, 2026 for the affected rollout cohort; check the effective policy
+rather than presenting it as already active on October 6.
+
 ## Layout and behavior
 
 | Path | Purpose |

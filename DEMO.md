@@ -5,6 +5,31 @@ The producer Action and its A/B revisions are benign. The independent firewall
 probe sends no credentials, files, environment data, or query payloads. No
 payload blocked by locking subsequently runs.
 
+## Producer-to-consumer flow
+
+Use the producer's verified source and annotations for the lead-in; do not
+duplicate its setup here. Keep on-screen highlights limited to the relevant
+event, annotation, policy target, or cache line.
+
+| Step | Focus and on-screen highlight |
+| --- | --- |
+| Original attack model | Explain the risk of contributor-controlled code entering a privileged workflow or shared cache path. This is a model, not an attack performed by the demo. |
+| Implicit producer defaults | Show the original `pull_request_target` lint workflow and its checkout-hardening/read-only-cache annotations. Keep the workflow unchanged for this comparison; a YAML migration is not the main protection being demonstrated. |
+| Upcoming default WEP event restriction | Show the [default `pull_request_target` policy](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target#default-policy-for-pull_request_target) for affected public repositories. Enforcement is scheduled for November 2, 2026 for the affected rollout cohort; check the effective policy. Briefly show an optional `pull_request` migration for lint needing no secrets or elevated permissions. |
+| Explicit release actor policy | Highlight the Steve-Glass-only actor allowlist and its `release.yml` target. It is separate from the upcoming default event restriction. |
+| Release cache opt-out | Highlight `cache-mode: none`. Retain the original setup-node `cache: npm` only if producer evidence confirms viability; do not stage an unverified success claim. |
+| Consumer dependency identity | Show `gh actions-lock --no-narrow --no-interactive` and the existing A lock. Runtime enforcement remains unresolved in the open issue below. |
+| Independent firewall request | Transition from dependency identity to a separate credential-free request. Keep the current log policy; any later enforce comparison needs its own approved run and correlated deny evidence. |
+
+As of October 6, 2026, the upcoming default event restriction is not an observed
+active enforcement result. Its scope excludes private/internal repositories
+and does not replace an applicable existing Actions event policy.
+
+Changing an event to `pull_request` is not universal isolation for unsafe code,
+especially on persistent self-hosted runners. Fork/external-contributor approval
+is background context only, not part of the core recording or an approval-flow
+demonstration; no existing producer setting needs to change.
+
 ## Current state
 
 The official `gh-actions-lock` CLI has already generated and committed
@@ -197,14 +222,6 @@ still receive the exact thank-you reply with only `pull-requests: write`.
 Capture the real Action SHA/output, reply, committed policy, and native traffic
 evidence. Any A-identity claim also depends on resolving the open locking issue.
 Do not refresh pins or weaken unrelated protections to make the run green.
-
-## Related producer setup
-
-The producer's `lint-defaults.yml` shows checkout/cache defaults; `lint.yml`
-uses `pull_request`. Its `release.yml` uses `cache-mode: none` and an explicit
-Steve-Glass-only actor policy targeting that workflow. These are producer
-settings, not consumer changes. Fork approval is a settings-only inspection;
-no fork PR or approval flow is required here.
 
 Firewall artifacts are not Policy insights; Policy insights concerns workflow
 execution protections. Preview documentation access or repository admin
