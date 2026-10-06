@@ -53,9 +53,10 @@ releases. The display-only `demo/before/issuecomment.yml` does not activate a
 baseline. Preserve the real commits and run evidence; do not reset tags, delete
 the lockfile, or overwrite enrolled YAML to stage a different result.
 
-The current comment workflow no longer includes the demo-only output summary
-or expected-A assertion. The earlier run and display-only snapshot retain that
-diagnostic history. Removing the check does not resolve or verify native locking.
+Neither the current comment workflow nor the display-only before example
+includes the demo-only output summary or expected-A assertion. Earlier commits
+and runs retain that diagnostic history. Removing the check does not resolve
+or verify native locking.
 
 ## Record the official CLI command
 

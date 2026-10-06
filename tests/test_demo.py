@@ -28,8 +28,7 @@ class WorkflowTests(unittest.TestCase):
 
     def test_comment_contract_and_baseline(self):
         baseline = load("demo/before/issuecomment.yml")
-        for key in ("name", "run-name", "on", "permissions"):
-            self.assertEqual(self.comment[key], baseline[key])
+        self.assertEqual(self.comment, baseline)
         self.assertEqual(self.comment["on"], {"issue_comment": {"types": ["created"]}})
         self.assertEqual(self.comment["permissions"], {})
         job = self.comment["jobs"]["comment"]
@@ -43,7 +42,6 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(actions[0]["with"], {
             "token": "${{ github.token }}", "body": "Thanks for the pull request!",
         })
-        self.assertEqual({**actions[0], "id": "note"}, baseline["jobs"]["comment"]["steps"][0])
         self.assertNotIn("checkout", json.dumps(self.comment))
         self.assertIn("github.event.comment.id", self.comment["run-name"])
 

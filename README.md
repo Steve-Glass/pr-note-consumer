@@ -50,8 +50,8 @@ Workflow `GITHUB_TOKEN` comments generally do not start another workflow.
 The comment workflow only posts the note; its demo-only summary and expected-A
 assertion have been removed. Action failures still fail the job normally.
 The producer's revision marker and runner resolution remain available in the
-logs for manual inspection. The display-only before snapshot retains the
-original diagnostic step as historical context, not an active check.
+logs for manual inspection. The display-only before example uses the same
+minimal comment steps; the original diagnostic is preserved only in Git history.
 
 The external probe disables implicit curl configuration, follows no redirects,
 uses bounded connection/overall timeouts, discards the response body, and sends
