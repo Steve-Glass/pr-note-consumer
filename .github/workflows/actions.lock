@@ -5,9 +5,29 @@ version: 'v0.0.2'
 workflows:
     '.github/workflows/issuecomment.yml':
         - 'steve-glass/pr-note@v3'
+    '.github/workflows/zizmor.yml':
+        - 'actions/checkout@v6.1.0'
+        - 'zizmorcore/zizmor-action@v0.6.4'
 dependencies:
+    'actions/checkout@v6.1.0':
+        ref: 'v6.1.0'
+        commit: 'sha1-d23441a48e516b6c34aea4fa41551a30e30af803'
+        owner_id: 44036562
+        repo_id: 197814629
+    'github/codeql-action@cdf488f595d80d6e07e03d4674febd5ab45fa938':
+        ref: 'v4.37.9'
+        commit: 'sha1-cdf488f595d80d6e07e03d4674febd5ab45fa938'
+        owner_id: 9919
+        repo_id: 259445878
     'steve-glass/pr-note@v3':
         ref: 'v3'
         commit: 'sha1-a53b99fc9738713d0a1d0dba397606f0f0352a98'
         owner_id: 84886334
         repo_id: 1404620267
+    'zizmorcore/zizmor-action@v0.6.4':
+        ref: 'v0.6.4'
+        commit: 'sha1-cc914d7f3750a2d13d75c7f184a1060aa0e9d482'
+        owner_id: 210636713
+        repo_id: 985558803
+        uses:
+            - 'github/codeql-action@cdf488f595d80d6e07e03d4674febd5ab45fa938'
