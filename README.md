@@ -1,5 +1,7 @@
 # PR note consumer
 
+Universe Firewall Demo
+
 Example consumer of [Steve-Glass/pr-note](https://github.com/Steve-Glass/pr-note),
 with setup for two separate controls: native dependency locking and native
 egress policy. The Action posts a thank-you comment; an independent workflow
