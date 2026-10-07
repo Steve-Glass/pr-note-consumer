@@ -1,3 +1,3 @@
-mode: log
+mode: enforce
 allow:
   - api.github.com
