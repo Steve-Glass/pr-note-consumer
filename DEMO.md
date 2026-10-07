@@ -18,7 +18,7 @@ event, annotation, policy target, or cache line.
 | Upcoming default WEP event restriction | Show the [default `pull_request_target` policy](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target#default-policy-for-pull_request_target) for affected public repositories. Enforcement is scheduled for November 2, 2026 for the affected rollout cohort; check the effective policy. Briefly show an optional `pull_request` migration for lint needing no secrets or elevated permissions. |
 | Explicit release actor policy | Highlight the Steve-Glass-only actor allowlist and its `release.yml` target. It is separate from the upcoming default event restriction. |
 | Release cache opt-out | Retain setup-node `cache: npm` with workflow-level `cache-mode: none`: the [producer's read-only hosted check](https://github.com/Steve-Glass/pr-note/actions/runs/37483252644) succeeded with cache-read/cache-write denial warnings, confirming tolerance of denied cache access, not a poisoned-entry experiment or release publication. |
-| Consumer dependency identity | Show `gh actions-lock --no-narrow --no-interactive` and the existing A lock. Runtime enforcement remains unresolved in the open issue below. |
+| Consumer dependency identity | Show the new zizmor workflow, then manually run `gh actions-lock --no-narrow --no-interactive` to add its dependencies while retaining the existing A lock. Runtime enforcement remains unresolved in the open issue below. |
 | Independent firewall request | Transition from dependency identity to a separate credential-free request. Keep the current log policy; any later enforce comparison needs its own approved run and correlated deny evidence. |
 
 As of October 6, 2026, the upcoming default event restriction is not an observed
@@ -36,10 +36,17 @@ The official `gh-actions-lock` CLI has already generated and committed
 `.github/workflows/actions.lock`, recording reviewed A while retaining
 `Steve-Glass/pr-note@v3` in the workflow.
 
+The new `.github/workflows/zizmor.yml` deliberately introduces
+`actions/checkout@v6` and `zizmorcore/zizmor-action@v0.6.4` without updating that
+lockfile. These tag references are inputs for the manual locking demonstration.
+The analyzer version is fixed at `1.30.1`; its normal PR/main-push workflow only
+analyzes files and uploads SARIF, without executing checked-out project code.
+
 The after-B run selected B despite the unchanged workflow and lockfile. The
 cause is unknown and tracked in [the open native-locking issue](https://github.com/Steve-Glass/pr-note-consumer/issues/2).
 Do not claim A-after-B enforcement succeeded. Further runtime verification is
-deferred; the next recording step can show the CLI itself without starting runs.
+deferred; the manual CLI recording need not start a comment replay or firewall
+probe. Publishing the zizmor workflow on `main` triggers its own analysis job.
 
 | Reference | Preserved identity |
 | --- | --- |
@@ -69,19 +76,23 @@ When ready to record manually:
 
 ```sh
 gh actions-lock --help
+cat .github/workflows/zizmor.yml
 cat .github/workflows/actions.lock
 gh actions-lock --no-narrow --no-interactive
 git diff -- .github/workflows
 ```
 
-The command has already been used for this repository. With an existing
-lockfile this is a maintenance run, not first-time onboarding, and it may
-produce no diff. A visual recording is a separate manual step; it does not
-authorize changing the preserved snapshot or publishing any resulting changes.
-Do not use `--relock`, `--accept-moved`, or delete the lock to manufacture a diff.
+The command has already been used for the comment workflow, but not for the
+new zizmor workflow. During this manual recording, expect the CLI to add
+zizmor's workflow entry, direct dependencies, and discovered transitive
+dependencies (including its SARIF upload Action). Inspect what the official
+tool actually generates and confirm the existing `pr-note@v3` pin stays at A.
+Review resulting changes before publishing. Do not use `--relock`,
+`--accept-moved`, or delete the lock to manufacture a diff.
 
-**Show:** the exact command, existing native lockfile, recorded A identity, and
-actual CLI output. Explain that `--no-narrow` preserves the literal `@v3`;
+**Show:** the new workflow's `uses` lines, the exact CLI command, the generated
+dependency additions, and the unchanged recorded A identity. Explain that
+`--no-narrow` preserves the literal tag references, including `@v3`;
 without it, the CLI normally narrows new version references to full semver tags.
 `--no-interactive` avoids prompts. Neither flag proves runtime enforcement.
 

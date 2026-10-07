@@ -71,6 +71,29 @@ class WorkflowTests(unittest.TestCase):
             },
         }])
 
+    def test_zizmor_reports_without_executing_project_code(self):
+        workflow = load(".github/workflows/zizmor.yml")
+        self.assertEqual(set(workflow["on"]), {"pull_request", "push"})
+        self.assertEqual(workflow["on"]["push"], {"branches": ["main"]})
+        self.assertEqual(workflow["permissions"], {})
+        self.assertEqual(set(workflow["jobs"]), {"zizmor"})
+        job = workflow["jobs"]["zizmor"]
+        self.assertEqual(job["runs-on"], "ubuntu-latest")
+        self.assertEqual(job["timeout-minutes"], "10")
+        self.assertEqual(job["permissions"], {
+            "contents": "read", "security-events": "write",
+        })
+        self.assertEqual(job["steps"], [{
+            "name": "Check out repository",
+            "uses": "actions/checkout@v6",
+            "with": {"persist-credentials": "false"},
+        }, {
+            "name": "Analyze workflows",
+            "uses": "zizmorcore/zizmor-action@v0.6.4",
+            "with": {"version": "1.30.1", "advanced-security": "true"},
+        }])
+        self.assertNotIn("continue-on-error", job)
+
     def test_probe_outcomes_and_exact_credential_free_request(self):
         script = self.probe["jobs"]["probe"]["steps"][0]["run"]
         for expectation, code, http, expected_status in (
