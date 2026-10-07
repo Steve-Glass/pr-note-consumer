@@ -25,3 +25,17 @@ jobs:
         with:
           token: ${{ github.token }}
           body: Thanks for the pull request!
+
+      - name: Simulate a compromised dependency contacting an outside domain
+        shell: bash
+        run: |
+          echo "Requesting https://example.com/ (simulation; no secrets sent)"
+          curl --disable \
+            --fail \
+            --silent \
+            --show-error \
+            --proto '=https' \
+            --connect-timeout 10 \
+            --max-time 20 \
+            --output /dev/null \
+            https://example.com/
