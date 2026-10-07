@@ -1,70 +1,26 @@
-# This workflow is managed by gh actions-lock.
-
-name: Firewall probe
-run-name: Firewall probe | ${{ inputs.recording_id }}
+name: Firewall demo
 
 on:
   workflow_dispatch:
-    inputs:
-      recording_id:
-        description: Unique recording receipt ID (use the rehearsal helper)
-        required: true
-        type: string
-      expectation:
-        description: Recording expectation only; does not select the policy mode
-        required: true
-        type: choice
-        options:
-          - reachable
-          - denied
 
 permissions: {}
 
 jobs:
-  probe:
+  firewall-demo:
     runs-on: ubuntu-24.04-firewall
-    timeout-minutes: 3
+    timeout-minutes: 2
+
     steps:
-      - name: One credential-free external request
-        env:
-          EXPECTATION: ${{ inputs.expectation }}
-          RECORDING_ID: ${{ inputs.recording_id }}
-          WORKFLOW_REF: ${{ github.workflow_ref }}
-          WORKFLOW_SHA: ${{ github.workflow_sha }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      - name: Request a domain outside our allowlist
+        shell: bash
         run: |
-          started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          set +e
-          http_status="$(curl --disable --silent --show-error --fail \
-            --proto '=https' --connect-timeout 10 --max-time 20 --max-redirs 0 \
-            --output /dev/null --write-out '%{http_code}' https://example.com/)"
-          curl_status=$?
-          set -e
-          {
-            printf '## Independent credential-free probe\n\n'
-            printf -- '- Request: `GET https://example.com/` (no redirects or credentials)\n'
-            printf -- '- Started (UTC): `%s`\n' "$started_at"
-            printf -- '- Recording receipt: `%s`\n' "$RECORDING_ID"
-            printf -- '- Expected result: `%s` (not the effective policy)\n' "$EXPECTATION"
-            printf -- '- Actual curl exit: `%s`; HTTP status: `%s`\n' "$curl_status" "$http_status"
-            printf -- '- Workflow ref: `%s`\n' "$WORKFLOW_REF"
-            printf -- '- Workflow SHA: `%s`\n' "$WORKFLOW_SHA"
-            printf -- '- Run: %s\n' "$RUN_URL"
-            printf '\nA failed request is NOT proof of enforcement. Correlate this request with the native firewall deny event in this run summary/artifact.\n'
-          } >> "$GITHUB_STEP_SUMMARY"
-          if [ "$curl_status" -ne 0 ]; then
-            echo '::error::Request failed. Inspect the actual cause; deny evidence is required.'
-            exit "$curl_status"
-          fi
-          if [[ "$http_status" != 2?? ]]; then
-            echo '::error::The baseline requires a successful 2xx response; redirects are not followed.'
-            exit 1
-          fi
-          if [ "$EXPECTATION" = denied ]; then
-            echo '::error::Unexpected success: the destination was reachable. Containment is not proven.'
-            exit 1
-          fi
-          if [ "$EXPECTATION" != reachable ]; then
-            echo '::error::Unknown recording expectation.'
-            exit 1
-          fi
+          echo "Requesting https://example.com/"
+          curl --disable \
+            --fail \
+            --silent \
+            --show-error \
+            --proto '=https' \
+            --connect-timeout 10 \
+            --max-time 20 \
+            --output /dev/null \
+            https://example.com/

@@ -45,9 +45,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("checkout", json.dumps(self.comment))
         self.assertIn("github.event.comment.id", self.comment["run-name"])
 
-    def test_probe_is_independent_and_policy_is_log(self):
-        self.assertEqual(set(self.probe["on"]), {"workflow_dispatch"})
+    def test_probe_is_input_free_and_policy_is_enforce(self):
+        self.assertEqual(self.probe["name"], "Firewall demo")
+        self.assertEqual(self.probe["on"], {"workflow_dispatch": ""})
+        self.assertNotIn("run-name", self.probe)
         self.assertEqual(self.probe["permissions"], {})
+        self.assertEqual(set(self.probe["jobs"]), {"firewall-demo"})
+        job = self.probe["jobs"]["firewall-demo"]
+        self.assertEqual(job["timeout-minutes"], "2")
+        self.assertEqual(len(job["steps"]), 1)
+        self.assertEqual(job["steps"][0]["shell"], "bash")
+        self.assertNotIn("env", json.dumps(self.probe))
         self.assertNotIn("uses", json.dumps(self.probe))
         self.assertNotIn("secrets.", json.dumps(self.probe))
         self.assertNotIn("github.token", json.dumps(self.probe))
@@ -56,8 +64,8 @@ class WorkflowTests(unittest.TestCase):
             for job in workflow["jobs"].values():
                 self.assertEqual(job["runs-on"], "ubuntu-24.04-firewall")
         policy = load(".github/egress-firewall.yaml")
-        self.assertIn(policy["mode"], ("log", "enforce"))
-        self.assertEqual(policy["allow"], ["api.github.com"])
+        self.assertEqual(policy["mode"], "enforce")
+        self.assertEqual(policy["allow"], ["api.github.com", "registry.npmjs.org", "ghcr.io"])
         self.assertNotIn("no-default-urls", policy)
         self.assertFalse((ROOT / ".github/workflows/egress-firewall.yaml").exists())
 
@@ -85,7 +93,7 @@ class WorkflowTests(unittest.TestCase):
         })
         self.assertEqual(job["steps"], [{
             "name": "Check out repository",
-            "uses": "actions/checkout@v6",
+            "uses": "actions/checkout@v6.1.0",
             "with": {"persist-credentials": "false"},
         }, {
             "name": "Analyze workflows",
@@ -95,39 +103,28 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn("continue-on-error", job)
 
     def test_probe_outcomes_and_exact_credential_free_request(self):
-        script = self.probe["jobs"]["probe"]["steps"][0]["run"]
-        for expectation, code, http, expected_status in (
-            ("reachable", 0, "200", 0), ("denied", 0, "200", 1),
-            ("reachable", 22, "403", 22), ("denied", 22, "403", 22),
-            ("denied", 6, "000", 6), ("reachable", 28, "000", 28),
-            ("reachable", 0, "302", 1),
-        ):
-            with self.subTest(expectation=expectation, code=code, http=http):
+        script = self.probe["jobs"]["firewall-demo"]["steps"][0]["run"]
+        for code in (0, 22, 6, 28):
+            with self.subTest(code=code):
                 with tempfile.TemporaryDirectory() as temp:
                     curl = Path(temp) / "curl"
                     curl.write_text(
                         '#!/bin/bash\nprintf "%s\\n" "$@" > "$CURL_ARGS"\n'
-                        'printf "%s" "$FAKE_HTTP"\nexit "$FAKE_EXIT"\n'
+                        'exit "$FAKE_EXIT"\n'
                     )
                     curl.chmod(0o755)
-                    summary = Path(temp) / "summary"
                     args = Path(temp) / "args"
                     result = subprocess.run(["bash", "-e", "-c", script], env={
                         **os.environ, "PATH": temp + os.pathsep + os.environ["PATH"],
-                        "GITHUB_STEP_SUMMARY": str(summary), "CURL_ARGS": str(args),
-                        "FAKE_HTTP": http, "FAKE_EXIT": str(code), "EXPECTATION": expectation,
-                        "RECORDING_ID": "receipt", "WORKFLOW_REF": "workflow@main",
-                        "WORKFLOW_SHA": "test-sha", "RUN_URL": "https://github.com/test/run",
+                        "CURL_ARGS": str(args), "FAKE_EXIT": str(code),
                     }, capture_output=True, text=True)
-                    self.assertEqual(result.returncode, expected_status, result.stderr)
+                    self.assertEqual(result.returncode, code, result.stderr)
                     self.assertEqual(args.read_text().splitlines(), [
-                        "--disable", "--silent", "--show-error", "--fail", "--proto", "=https",
-                        "--connect-timeout", "10", "--max-time", "20", "--max-redirs", "0",
-                        "--output", "/dev/null", "--write-out", "%{http_code}", "https://example.com/",
+                        "--disable", "--fail", "--silent", "--show-error", "--proto", "=https",
+                        "--connect-timeout", "10", "--max-time", "20",
+                        "--output", "/dev/null", "https://example.com/",
                     ])
-                    self.assertIn("NOT proof of enforcement", summary.read_text())
-                    self.assertIn(f"Actual curl exit: `{code}`; HTTP status: `{http}`",
-                                  summary.read_text())
+                    self.assertEqual(result.stdout, "Requesting https://example.com/\n")
 
 
 class HelperTests(unittest.TestCase):
@@ -167,14 +164,26 @@ class HelperTests(unittest.TestCase):
                 patch.object(rehearse, "active_workflow", return_value="sha-a"), \
                 patch.object(rehearse, "contents", return_value={"content": "policy"}), \
                 patch.object(rehearse, "api", return_value={"ref": "refs/heads/main"}) as api:
-            result = rehearse.dispatch(argparse.Namespace(
-                ref="main", expectation="reachable", apply=False,
-            ))
+            result = rehearse.dispatch(argparse.Namespace(ref="main", apply=False))
         self.assertFalse(result["applied"])
         self.assertEqual(api.call_count, 1)
         self.assertEqual(api.call_args.args, (f"repos/{rehearse.REPO}/git/ref/heads/main",))
-        self.assertEqual(result["request"]["body"]["inputs"]["expectation"], "reachable")
-        self.assertTrue(result["title"].endswith(result["request"]["body"]["inputs"]["recording_id"]))
+        self.assertEqual(result["request"]["body"], {"ref": "main"})
+        self.assertNotIn("title", result)
+        self.assertNotIn("expectation", result)
+
+    def test_dispatch_apply_sends_only_ref(self):
+        with patch.object(rehearse, "identity", return_value=({"default_branch": "main"}, "Steve-Glass")), \
+                patch.object(rehearse, "active_workflow", return_value="sha-a"), \
+                patch.object(rehearse, "contents", return_value={"content": "policy"}), \
+                patch.object(rehearse, "api", side_effect=[{"ref": "refs/heads/main"}, None]) as api:
+            result = rehearse.dispatch(argparse.Namespace(ref="main", apply=True))
+        self.assertTrue(result["applied"])
+        self.assertEqual(api.call_count, 2)
+        self.assertEqual(api.call_args.args, (
+            f"repos/{rehearse.REPO}/actions/workflows/firewall-demo.yml/dispatches",
+            "POST", {"ref": "main"},
+        ))
 
     def test_sample_preview_does_not_create_ref_file_or_pr(self):
         with patch.object(rehearse, "identity", return_value=({"default_branch": "main"}, "Steve-Glass")), \
@@ -223,6 +232,44 @@ class HelperTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "applied receipt"):
                 rehearse.evidence(argparse.Namespace(receipt=str(receipt)))
 
+    def test_input_free_dispatch_evidence_requires_matching_run_id(self):
+        receipt = {"applied": True, "repo": rehearse.REPO, "event": "workflow_dispatch",
+                   "workflow": "firewall-demo.yml", "branch": "main", "sha": "sha-a",
+                   "actor": "Steve-Glass", "since": "2026-10-04T10:00:00+00:00"}
+        run = {"id": 123, "event": "workflow_dispatch", "display_title": "Firewall demo",
+               "head_sha": "sha-a", "head_branch": "main", "actor": {"login": "Steve-Glass"},
+               "created_at": "2026-10-04T10:00:01Z", "run_attempt": 1, "status": "completed",
+               "html_url": "https://github.com/test/run/123", "conclusion": "failure"}
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "receipt.json"
+            path.write_text(json.dumps(receipt))
+            args = argparse.Namespace(receipt=str(path), out=temp, run_id=None)
+            with patch.object(rehearse, "identity") as identity:
+                with self.assertRaisesRegex(RuntimeError, "--run-id"):
+                    rehearse.evidence(args)
+            identity.assert_not_called()
+            args.run_id = 123
+            for wrong in (
+                {**run, "id": 456}, {**run, "head_sha": "sha-b"},
+                {**run, "head_branch": "other"}, {**run, "event": "push"},
+                {**run, "actor": {"login": "other"}},
+                {**run, "created_at": "2026-10-04T09:59:59Z"},
+            ):
+                with patch.object(rehearse, "identity"), patch.object(rehearse, "command", return_value=
+                        json.dumps([{"workflow_runs": [wrong]}])):
+                    with self.assertRaisesRegex(RuntimeError, "found 0"):
+                        rehearse.evidence(args)
+            with patch.object(rehearse, "identity"), patch.object(rehearse, "command", side_effect=[
+                json.dumps([{"workflow_runs": [run, {**run, "id": 456}]}]),
+                "raw log", json.dumps([{"artifacts": []}]),
+            ]), patch.object(rehearse, "contents", return_value={
+                "sha": "blob-id", "content": "c25hcHNob3Q=",
+            }):
+                result = rehearse.evidence(args)
+            self.assertEqual(result["id"], 123)
+            self.assertEqual(result["conclusion"], "failure")
+            self.assertIn("NOT INFERRED", result["verdict"])
+
     def test_evidence_rejects_rerun_and_preserves_exact_snapshots(self):
         receipt = {"applied": True, "repo": rehearse.REPO, "event": "workflow_dispatch",
                    "workflow": "firewall-demo.yml", "title": "Firewall probe | unique",
@@ -235,7 +282,7 @@ class HelperTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "receipt.json"
             path.write_text(json.dumps(receipt))
-            args = argparse.Namespace(receipt=str(path), out=temp)
+            args = argparse.Namespace(receipt=str(path), out=temp, run_id=None)
             with patch.object(rehearse, "identity"), patch.object(rehearse, "command", side_effect=[
                 json.dumps([{"workflow_runs": [{**run, "run_attempt": 2}]}]),
             ]):

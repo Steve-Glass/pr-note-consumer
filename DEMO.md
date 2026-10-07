@@ -19,7 +19,7 @@ event, annotation, policy target, or cache line.
 | Explicit release actor policy | Highlight the Steve-Glass-only actor allowlist and its `release.yml` target. It is separate from the upcoming default event restriction. |
 | Release cache opt-out | Retain setup-node `cache: npm` with workflow-level `cache-mode: none`: the [producer's read-only hosted check](https://github.com/Steve-Glass/pr-note/actions/runs/37483252644) succeeded with cache-read/cache-write denial warnings, confirming tolerance of denied cache access, not a poisoned-entry experiment or release publication. |
 | Consumer dependency identity | Show the new zizmor workflow, then manually run `gh actions-lock --no-narrow --no-interactive` to add its dependencies while retaining the existing A lock. Runtime enforcement remains unresolved in the open issue below. |
-| Independent firewall request | Transition from dependency identity to a separate credential-free request. Keep the current log policy; any later enforce comparison needs its own approved run and correlated deny evidence. |
+| Independent firewall request | Open **Actions > Firewall demo > Run workflow** on `main`. Show the enforce-mode domain allowlist and single credential-free request, then inspect matching native deny evidence rather than treating a red step as proof. |
 
 As of October 6, 2026, the upcoming default event restriction is not an observed
 active enforcement result. Its scope excludes private/internal repositories
@@ -36,9 +36,9 @@ The official `gh-actions-lock` CLI has already generated and committed
 `.github/workflows/actions.lock`, recording reviewed A while retaining
 `Steve-Glass/pr-note@v3` in the workflow.
 
-The new `.github/workflows/zizmor.yml` deliberately introduces
-`actions/checkout@v6` and `zizmorcore/zizmor-action@v0.6.4` without updating that
-lockfile. These tag references are inputs for the manual locking demonstration.
+The manual locking recording has added `.github/workflows/zizmor.yml` and its
+dependencies to the lockfile, with `actions/checkout@v6.1.0` and
+`zizmorcore/zizmor-action@v0.6.4` in the workflow. Preserve these generated changes.
 The analyzer version is fixed at `1.30.1`; its normal PR/main-push workflow only
 analyzes files and uploads SARIF, without executing checked-out project code.
 
@@ -82,11 +82,10 @@ gh actions-lock --no-narrow --no-interactive
 git diff -- .github/workflows
 ```
 
-The command has already been used for the comment workflow, but not for the
-new zizmor workflow. During this manual recording, expect the CLI to add
-zizmor's workflow entry, direct dependencies, and discovered transitive
-dependencies (including its SARIF upload Action). Inspect what the official
-tool actually generates and confirm the existing `pr-note@v3` pin stays at A.
+The command has already been used for both the comment and zizmor workflows.
+The lock now includes zizmor's direct and transitive dependencies, including
+its SARIF upload Action. A repeat manual run may produce no diff. Inspect any
+actual changes and confirm the existing `pr-note@v3` pin stays at A.
 Review resulting changes before publishing. Do not use `--relock`,
 `--accept-moved`, or delete the lock to manufacture a diff.
 
@@ -184,57 +183,64 @@ rerun. Compare upstream resolution, run ID/attempt, workflow/lockfile snapshots,
 actual runner SHA, actual output, and real reply. A rejected or skipped Action
 is not evidence that A executed.
 
-### 4. Establish external reachability in log mode
+### 4. Run the simple firewall demo manually
 
-This is independent of the locking comparison and has not been recorded.
-Keep the committed policy in `log` mode on the explicitly selected ref.
-The dispatch workflow must also exist on the default branch.
+Open **Actions > Firewall demo > Run workflow**, select **main**, and run it
+when ready. There are no required inputs and no log-baseline step in this flow.
+This request is independent of dependency locking.
+
+**Show:** `.github/egress-firewall.yaml` with `mode: enforce` and the added
+domains `api.github.com`, `registry.npmjs.org`, and `ghcr.io`, then the workflow's
+single `curl` request to `https://example.com/`. The allowlist adds domains to
+platform defaults; it does not filter URL paths. `example.com` is outside the
+added list. The request contains no credentials or payload, disables implicit
+curl configuration, follows no redirects, and has bounded timeouts.
+
+Optional CLI alternative (preview first; `--apply` starts the manual workflow):
 
 ```sh
-python3 scripts/rehearse.py dispatch --ref main --expectation reachable
-# Only after approval:
-python3 scripts/rehearse.py dispatch --ref main --expectation reachable --apply \
-  > .demo-evidence/log-probe.json
-python3 scripts/rehearse.py evidence --receipt .demo-evidence/log-probe.json
+python3 scripts/rehearse.py dispatch --ref main
+# Only when ready to run:
+python3 scripts/rehearse.py dispatch --ref main --apply \
+  > .demo-evidence/firewall-dispatch.json
 ```
 
-**Expected:** the bounded, credential-free `GET https://example.com/` returns
-curl exit 0 and a 2xx status. **Evidence:** selected ref/SHA, committed policy,
-request timestamp/result, and that run's native traffic record.
-The `expectation` input labels the check; it does not select the policy mode.
-A log-mode proxy failure, DNS error, or missing runner is a failed baseline,
-not proof of enforcement.
+Publishing the workflow does not dispatch it. These instructions do not claim
+the request has run, been denied, or encountered a runner/backend problem.
 
-### 5. Enforce and correlate a deny (not performed)
+### 5. Inspect the actual outcome
 
-Only after a successful log baseline and separate approval, change the committed
-policy to `mode: enforce`. Keep `api.github.com` allowed and `example.com`
-outside the additive allowlist. Review real traffic before adding necessary
-hosts; do not disable platform defaults or broaden permissions to force success.
+Use the exact run opened from the manual dispatch. A failed curl step alone
+is not evidence of enforcement. Look for that run's native firewall deny event
+matching `curl`, `https://example.com/`, the request time, and the policy ref/SHA.
+Preserve its rule and artifact reference; read the actual artifact schema.
 
 ```sh
-# Only after the reviewed enforce policy is published on this ref:
-python3 scripts/rehearse.py dispatch --ref main --expectation denied --apply \
-  > .demo-evidence/enforce-probe.json
-python3 scripts/rehearse.py evidence --receipt .demo-evidence/enforce-probe.json
-# Use the exact run ID and an actual artifact name from its metadata:
+gh run view "$RUN_ID" --repo Steve-Glass/pr-note-consumer --log
+gh api repos/Steve-Glass/pr-note-consumer/actions/runs/"$RUN_ID"/artifacts
 gh run download "$RUN_ID" --repo Steve-Glass/pr-note-consumer \
   --name "$ARTIFACT_NAME" --dir ".demo-evidence/$RUN_ID/firewall"
+# If the optional helper created a dispatch receipt:
+python3 scripts/rehearse.py evidence --receipt .demo-evidence/firewall-dispatch.json \
+  --run-id "$RUN_ID"
 ```
 
-**Required evidence:** the same run's native deny event for `curl` and
-`https://example.com/`, its rule, and matching request time/ref/policy SHA.
-Read the actual artifact schema; do not assume its name or fields.
-The probe should remain visibly failed. A random network error is not proof,
-and unexpected success explicitly fails the containment check.
+The helper requires a selected run ID for input-free dispatches and checks its
+event, ref, SHA, actor and time against the receipt. It does not choose the
+latest run automatically.
 
-Policy is read from the workflow's ref. Editing `main` does not change a
-dispatch from another branch. Any repeat or return to log mode requires a
-reviewed policy state and separate approval.
+Curl failures remain failures without suppression. DNS, timeout, arbitrary
+HTTP errors, or runner unavailability must not be labeled a policy deny.
+Unexpected success does not demonstrate containment either; this simple
+workflow does not add an expected-result assertion. Configuration alone does
+not prove or fix runner/backend access.
+
+Policy comes from the workflow's ref. Editing `main` does not change a dispatch
+from another branch. Keep evidence tied to the selected commit.
 
 ### 6. Legitimate commenting under enforcement (not performed)
 
-After a future enforce-mode checkpoint, a separately approved new comment should
+After a confirmed firewall checkpoint, a separately approved new comment should
 still receive the exact thank-you reply with only `pull-requests: write`.
 Capture the real Action SHA/output, reply, committed policy, and native traffic
 evidence. Any A-identity claim also depends on resolving the open locking issue.

@@ -187,16 +187,13 @@ def dispatch(args):
     sha = active_workflow("firewall-demo.yml", args.ref)
     if contents(".github/egress-firewall.yaml", sha) is None:
         raise RuntimeError("No committed firewall policy on the selected workflow ref.")
-    recording_id = str(uuid.uuid4())
     receipt = {
         "applied": args.apply, "repo": REPO, "actor": actor, "event": "workflow_dispatch",
         "workflow": "firewall-demo.yml", "branch": args.ref, "sha": sha, "since": now(),
-        "title": f"Firewall probe | {recording_id}", "expectation": args.expectation,
     }
     receipt["request"] = write_preview(
         "POST", f"repos/{REPO}/actions/workflows/firewall-demo.yml/dispatches",
-        {"ref": args.ref, "inputs": {"recording_id": recording_id,
-                                   "expectation": args.expectation}}, args.apply,
+        {"ref": args.ref}, args.apply,
     )
     return receipt
 
@@ -205,7 +202,7 @@ def matched_runs(receipt, runs):
     return [
         run for run in runs
         if run["event"] == receipt["event"]
-        and run["display_title"] == receipt["title"]
+        and ("title" not in receipt or run["display_title"] == receipt["title"])
         and run["head_sha"] == receipt["sha"]
         and run["head_branch"] == receipt["branch"]
         and run["actor"]["login"] == receipt["actor"]
@@ -218,6 +215,11 @@ def evidence(args):
     receipt = json.loads(Path(args.receipt).read_text())
     if receipt.get("applied") is not True or receipt.get("repo") != REPO:
         raise RuntimeError("An applied receipt from this repository is required.")
+    if "title" not in receipt and args.run_id is None:
+        raise RuntimeError(
+            "This input-free dispatch has no unique run title. Select its run in Actions "
+            "and pass --run-id; the receipt's event, ref, SHA, actor and time must still match."
+        )
     identity()
     endpoint = (
         f"repos/{REPO}/actions/workflows/{receipt['workflow']}/runs"
@@ -225,10 +227,12 @@ def evidence(args):
     )
     pages = json.loads(command("gh", "api", "--paginate", "--slurp", endpoint))
     candidates = [run for page in pages for run in page["workflow_runs"]]
+    if args.run_id is not None:
+        candidates = [run for run in candidates if run["id"] == args.run_id]
     matches = matched_runs(receipt, candidates)
     if len(matches) != 1:
         raise RuntimeError(
-            f"Expected one exact event/title/SHA/ref/actor/time match; found {len(matches)}. "
+            f"Expected one matching run for this receipt and selected ID; found {len(matches)}. "
             "If delivery is pending, retry this read-only command. Check ref movement, "
             "Actions event policy, receipt, and runs; never choose the latest unrelated run."
         )
@@ -286,11 +290,11 @@ def main():
     comment.set_defaults(handler=trigger)
     probe = commands.add_parser("dispatch")
     probe.add_argument("--ref", required=True, help="Explicit branch name, not a tag or SHA")
-    probe.add_argument("--expectation", choices=("reachable", "denied"), required=True)
     probe.add_argument("--apply", action="store_true", help="Approved remote write")
     probe.set_defaults(handler=dispatch)
     collect = commands.add_parser("evidence")
     collect.add_argument("--receipt", required=True)
+    collect.add_argument("--run-id", type=int, help="Required for input-free firewall dispatches")
     collect.add_argument("--out", default=".demo-evidence")
     collect.set_defaults(handler=evidence)
     args = parser.parse_args()
