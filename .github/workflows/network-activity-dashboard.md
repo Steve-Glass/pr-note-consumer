@@ -27,6 +27,7 @@ timeout-minutes: 10
 checkout:
   ref: ${{ github.event.repository.default_branch }}
 tools:
+  github: false
   bash: ["cat /tmp/gh-aw/network-activity/facts.txt"]
 steps:
   - name: Prepare bounded authoritative facts

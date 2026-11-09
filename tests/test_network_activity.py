@@ -292,6 +292,57 @@ class CollectionTests(unittest.TestCase):
 
 
 class CompiledWorkflowTests(unittest.TestCase):
+    def compiled(self, kind):
+        path = ROOT / f".github/workflows/network-activity-{kind}.lock.yml"
+        text = path.read_text()
+        return yaml.load(text, Loader=yaml.BaseLoader), text
+
+    def test_only_safe_outputs_mcp_is_started(self):
+        for kind, output in (("collect", "report_coverage"), ("dashboard", "publish_dashboard")):
+            workflow, text = self.compiled(kind)
+            manifest = json.loads(next(line.removeprefix("# gh-aw-manifest: ")
+                                      for line in text.splitlines()
+                                      if line.startswith("# gh-aw-manifest: ")))
+            servers = manifest["mcp_servers"]
+            self.assertEqual([server["name"] for server in servers], ["safeoutputs"])
+            self.assertIn(output, servers[0]["tools"])
+            self.assertNotIn("ghcr.io/github/github-mcp-server", text)
+            self.assertNotIn("get_file_contents", text)
+            self.assertNotIn("issue_read", text)
+            gateways = [step["run"] for step in workflow["jobs"]["agent"]["steps"]
+                        if step.get("name") == "Start MCP Gateway"]
+            self.assertEqual(len(gateways), 1)
+            # Inspect the actual heredoc JSON, not only the compiler's manifest.
+            gateway = gateways[0]
+            servers_json = gateway.partition('"mcpServers":')[2].lstrip().replace("\\$", "$")
+            servers = json.JSONDecoder().raw_decode(servers_json)[0]
+            self.assertEqual(set(servers), {"safeoutputs"})
+            source = (ROOT / f".github/workflows/network-activity-{kind}.md").read_text()
+            self.assertIn("github: false", source)
+
+    def test_role_gate_is_preserved_and_collection_is_independent_of_ai(self):
+        for kind in ("collect", "dashboard"):
+            workflow, _ = self.compiled(kind)
+            jobs = workflow["jobs"]
+            pre = jobs["pre_activation"]
+            checks = [step for step in pre["steps"] if step.get("id") == "check_membership"]
+            self.assertEqual(len(checks), 1)
+            self.assertEqual(checks[0]["env"]["GH_AW_REQUIRED_ROLES"], "admin,maintainer,write")
+            self.assertNotIn("GH_AW_ALLOWED_BOTS", checks[0]["env"])
+            self.assertIn("check_membership.cjs", checks[0]["with"]["script"])
+            self.assertIn("steps.check_membership.outputs.is_team_member", pre["outputs"]["activated"])
+            self.assertEqual(jobs["activation"]["needs"], "pre_activation")
+            self.assertIn("needs.pre_activation.outputs.activated == 'true'",
+                          jobs["activation"]["if"])
+            if kind == "collect":
+                self.assertEqual(jobs["collect"]["needs"], "activation")
+                for job in ("pre_activation", "activation", "collect"):
+                    self.assertNotIn("NETWORK_AI_ENABLED", jobs[job].get("if", ""))
+                    self.assertNotIn("copilot-requests", jobs[job].get("permissions") or {})
+                self.assertIn("NETWORK_AI_ENABLED", jobs["agent"]["if"])
+                self.assertIn("needs.agent.result != 'skipped'", jobs["detection"]["if"])
+                self.assertIn("needs.agent.result != 'skipped'", jobs["safe_outputs"]["if"])
+
     def test_generated_privilege_and_source_boundaries(self):
         for kind in ("collect", "dashboard"):
             path = ROOT / f".github/workflows/network-activity-{kind}.lock.yml"
