@@ -1,0 +1,11 @@
+{
+  "issue_number": 0,
+  "public_domains": [
+    "api.github.com",
+    "broker.actions.githubusercontent.com",
+    "example.com",
+    "ghcr.io",
+    "github.com",
+    "registry.npmjs.org"
+  ]
+}

@@ -1,5 +1,12 @@
 # PR note consumer
 
+## Agentic network activity dashboard
+
+The opt-in collector and partner Copilot dashboard are documented in
+[docs/demo-agentic.md](docs/demo-agentic.md). They preserve the existing demo
+workflows, native policy and native lockfile, and remain disabled pending
+explicit setup. Personal-repository PAT-free inference is not yet verified.
+
 Example consumer of [Steve-Glass/pr-note](https://github.com/Steve-Glass/pr-note),
 with setup for two separate controls: native dependency locking and native
 egress policy. The Action posts a thank-you comment; an independent workflow
