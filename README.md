@@ -1,5 +1,8 @@
 # PR note consumer
 
+For the separate minimal Copilot-powered Agentic Workflows example, see
+[Issue triage setup and demo](ISSUE_TRIAGE.md).
+
 Example consumer of [Steve-Glass/pr-note](https://github.com/Steve-Glass/pr-note),
 with setup for two separate controls: native dependency locking and native
 egress policy. The Action posts a thank-you comment; an independent workflow
